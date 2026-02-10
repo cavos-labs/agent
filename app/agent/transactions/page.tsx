@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from "react";
 import { useCavos } from "@cavos/react";
+import { getProvider } from "@/lib/rpc";
 
 interface Transaction {
   hash: string;
@@ -20,6 +21,11 @@ export default function TransactionsPage() {
     const fetchTransactions = async () => {
       if (!address) return;
       setLoading(true);
+
+      const allTxs = new Map<string, Transaction>();
+      const provider = getProvider(network);
+
+      // 1. Try fetching from Backend API (Legacy/Indexer)
       try {
         const appId = process.env.NEXT_PUBLIC_CAVOS_APP_ID || '';
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://cavos.xyz';
@@ -28,13 +34,45 @@ export default function TransactionsPage() {
         );
         if (response.ok) {
           const data = await response.json();
-          setTransactions(data.transactions || []);
+          if (data.transactions) {
+            data.transactions.forEach((tx: Transaction) => allTxs.set(tx.hash, tx));
+          }
         }
       } catch {
-        // Backend may not have this endpoint yet
-      } finally {
-        setLoading(false);
+        // Backend failure is expected if no indexer
       }
+
+      // 2. Fetch from RPC via getEvents (Fallback/Enhancement)
+      try {
+        const eventsParams = {
+          address: address, // Events emitted BY the account
+          chunk_size: 50, // Last 50 events
+          // Keys: we want ALL events from this address to catch any execution
+        };
+
+        const eventsRes = await provider.getEvents(eventsParams as any);
+
+        for (const event of eventsRes.events) {
+          if (!allTxs.has(event.transaction_hash)) {
+            // We found a tx hash, but we don't have details.
+            // We can show it as "Confirmed" with the hash.
+            // To get timestamp, we'd need getBlock, but that's expensive for many txs.
+            // For now, we just list it.
+            allTxs.set(event.transaction_hash, {
+              hash: event.transaction_hash,
+              type: 'INVOKE', // Assumed
+              status: 'SUCCEEDED', // If it emitted an event, it likely succeeded
+              timestamp: 'RPC Discovered',
+              details: 'Event emitted'
+            });
+          }
+        }
+      } catch (err) {
+        console.error("RPC fetch failed", err);
+      }
+
+      setTransactions(Array.from(allTxs.values()).sort((a, b) => b.timestamp.localeCompare(a.timestamp))); // Rough sort
+      setLoading(false);
     };
     fetchTransactions();
   }, [address, network]);
