@@ -13,7 +13,7 @@ const NAV_ITEMS = [
   { href: '/agent/sessions', label: 'Sessions', icon: 'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z' },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const { address, getAssociatedWallets, switchWallet } = useCavos();
   const [wallets, setWallets] = useState<{ address: string; name?: string }[]>([]);
@@ -25,10 +25,10 @@ export default function Sidebar() {
   const shortenAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
   return (
-    <aside className="w-68 min-h-screen bg-bg border-r border-black/5 flex flex-col pt-2 shadow-[20px_0_40px_rgba(0,0,0,0.01)]">
+    <aside className="w-72 h-full bg-bg border-r border-black/5 flex flex-col pt-2 shadow-[20px_0_40px_rgba(0,0,0,0.01)] overflow-y-auto">
       {/* Brand */}
-      <div className="px-8 py-12">
-        <div className="flex flex-col gap-6">
+      <div className="px-8 py-8 md:py-12 flex justify-between items-start">
+        <div className="flex flex-col gap-6 w-full">
           <div className="relative w-8 h-8">
             <Image
               src="/logo.png"
@@ -85,6 +85,12 @@ export default function Sidebar() {
             </div>
           </div>
         </div>
+        {/* Mobile Close Button */}
+        <button onClick={onClose} className="md:hidden text-secondary/40 hover:text-secondary -mr-2">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
 
       {/* Navigation */}
@@ -95,6 +101,7 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={`flex items-center gap-4 px-5 py-3.5 rounded-2xl text-[13px] mb-2 transition-all duration-300 ${isActive
                 ? 'bg-black/5 text-secondary font-bold shadow-sm'
                 : 'text-secondary/60 hover:text-secondary hover:bg-black/2'
@@ -110,7 +117,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-10 py-10 border-t border-black/5">
+      <div className="px-10 py-10 border-t border-black/5 mt-auto">
         <p className="text-[10px] text-secondary/40 uppercase font-bold tracking-[0.2em]">Infrastructure node v0.1</p>
       </div>
     </aside>

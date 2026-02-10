@@ -120,30 +120,32 @@ export default function DashboardOverview() {
   return (
     <div className="max-w-5xl mx-auto py-8">
       {/* Page Header */}
-      <div className="flex items-center justify-between mb-16">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 md:mb-16 gap-4">
         <div>
-          <h2 className="font-serif text-6xl font-medium tracking-tight text-secondary">Overview</h2>
-          <p className="text-sm text-secondary/50 font-medium mt-4 tracking-tight">Advanced agentic wallet infrastructure</p>
+          <h2 className="font-serif text-4xl md:text-6xl font-medium tracking-tight text-secondary">Overview</h2>
+          <p className="text-sm text-secondary/50 font-medium mt-2 md:mt-4 tracking-tight">Advanced agentic wallet infrastructure</p>
         </div>
         <button
           onClick={logout}
-          className="px-6 py-2 text-[10px] font-bold text-secondary/60 uppercase tracking-[0.2em] border border-black/5 rounded-full hover:border-black/10 hover:text-secondary/80 transition-all duration-300"
+          className="self-start md:self-auto px-6 py-2 text-[10px] font-bold text-secondary/60 uppercase tracking-[0.2em] border border-black/5 rounded-full hover:border-black/10 hover:text-secondary/80 transition-all duration-300"
         >
           Sign out
         </button>
       </div>
 
       {/* Wallet Card */}
-      <div className="bg-bg border border-black/5 rounded-[2.5rem] p-12 mb-10 shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
-        <div className="flex items-start justify-between">
-          <div className="space-y-6">
+      <div className="bg-bg border border-black/5 rounded-[2.5rem] p-6 md:p-12 mb-10 shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
+        <div className="flex flex-col md:flex-row items-start justify-between gap-6">
+          <div className="space-y-6 w-full">
             <div>
               <p className="text-[10px] font-bold text-secondary/40 uppercase tracking-[0.2em] mb-4">Wallet Identity</p>
-              <div className="flex items-center gap-4">
-                <p className="text-2xl font-mono font-medium text-secondary/80 tracking-tighter">{address ? `${address.slice(0, 18)}...${address.slice(-12)}` : '—'}</p>
+              <div className="flex flex-col md:flex-row md:items-center gap-4">
+                <p className="text-xl md:text-2xl font-mono font-medium text-secondary/80 tracking-tighter break-all">
+                  {address ? `${address.slice(0, 10)}...${address.slice(-8)}` : '—'}
+                </p>
                 <button
                   onClick={handleCopy}
-                  className="px-5 py-2 text-[10px] font-bold bg-black/3 text-secondary/60 rounded-full hover:bg-black/6 transition-all duration-300"
+                  className="self-start px-5 py-2 text-[10px] font-bold bg-black/3 text-secondary/60 rounded-full hover:bg-black/6 transition-all duration-300"
                 >
                   {copied ? 'Copied' : 'Copy'}
                 </button>
@@ -226,12 +228,12 @@ export default function DashboardOverview() {
         ))}
       </div>
 
-      {/* Transfer Section */}
+      {/* Asset Dispatch section */}
       <div className="bg-bg border border-black/5 rounded-[2.5rem] overflow-hidden">
-        <div className="px-12 py-8 border-b border-black/5">
+        <div className="px-6 py-6 md:px-12 md:py-8 border-b border-black/5">
           <h3 className="text-[10px] font-bold text-secondary/40 uppercase tracking-[0.2em]">Asset Dispatch</h3>
         </div>
-        <div className="p-12">
+        <div className="p-6 md:p-12">
           <form onSubmit={handleTransfer} className="space-y-10">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="space-y-3">

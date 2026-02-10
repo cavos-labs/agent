@@ -45,16 +45,16 @@ export default function TransactionsPage() {
 
   return (
     <div className="max-w-5xl mx-auto py-8">
-      <div className="mb-16">
-        <h2 className="font-serif text-6xl font-medium tracking-tight text-secondary">Transactions</h2>
-        <p className="text-sm text-secondary/50 font-medium mt-4 tracking-tight">Financial activity history</p>
+      <div className="mb-8 md:mb-16">
+        <h2 className="font-serif text-4xl md:text-6xl font-medium tracking-tight text-secondary">Transactions</h2>
+        <p className="text-sm text-secondary/50 font-medium mt-2 md:mt-4 tracking-tight">Financial activity history</p>
       </div>
 
-      <div className="bg-bg border border-black/5 rounded-[2.5rem] overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
+      <div className="bg-bg border border-black/5 rounded-[2.5rem] overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.01)] overflow-x-auto">
         {loading ? (
-          <div className="p-20 text-center text-secondary/50 text-sm font-medium">Synchronizing with network...</div>
+          <div className="p-10 md:p-20 text-center text-secondary/50 text-sm font-medium">Synchronizing with network...</div>
         ) : transactions.length === 0 ? (
-          <div className="p-20 text-center">
+          <div className="p-10 md:p-20 text-center">
             <p className="text-secondary/60 text-sm font-medium">No activity recorded.</p>
             <p className="text-secondary/40 text-[10px] uppercase font-bold tracking-[0.2em] mt-4">Transactions will appear here after execution</p>
           </div>

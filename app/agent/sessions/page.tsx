@@ -162,24 +162,24 @@ export default function SessionsPage() {
 
   return (
     <div className="max-w-5xl mx-auto py-8">
-      <div className="mb-16">
-        <h2 className="font-serif text-6xl font-medium tracking-tight text-secondary">Sessions</h2>
-        <p className="text-sm text-secondary/50 font-medium mt-4 tracking-tight">Active cryptographic authorizations</p>
+      <div className="mb-8 md:mb-16">
+        <h2 className="font-serif text-4xl md:text-6xl font-medium tracking-tight text-secondary">Sessions</h2>
+        <p className="text-sm text-secondary/50 font-medium mt-2 md:mt-4 tracking-tight">Active cryptographic authorizations</p>
       </div>
 
       {loading ? (
-        <div className="bg-bg border border-black/5 rounded-[2.5rem] p-12 mb-10 shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
+        <div className="bg-bg border border-black/5 rounded-[2.5rem] p-6 md:p-12 mb-10 shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
           <p className="text-sm text-secondary/50 font-medium italic">Scanning on-chain session nodes...</p>
         </div>
       ) : sessions.length === 0 ? (
-        <div className="bg-bg border border-black/5 rounded-[2.5rem] p-12 mb-10 shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
+        <div className="bg-bg border border-black/5 rounded-[2.5rem] p-6 md:p-12 mb-10 shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
           <p className="text-sm text-secondary/60 font-medium tracking-tight">No active cryptographic session detected on-chain.</p>
         </div>
       ) : (
         <div className="space-y-6">
           {sessions.map((s) => (
-            <div key={s.key} className={`bg-bg border ${s.isCurrent ? 'border-primary/20 bg-primary/5' : 'border-black/5'} rounded-[2.5rem] p-12 shadow-[0_4px_20px_rgba(0,0,0,0.01)]`}>
-              <div className="flex items-center justify-between mb-10">
+            <div key={s.key} className={`bg-bg border ${s.isCurrent ? 'border-primary/20 bg-primary/5' : 'border-black/5'} rounded-[2.5rem] p-6 md:p-12 shadow-[0_4px_20px_rgba(0,0,0,0.01)]`}>
+              <div className="flex items-center justify-between mb-8 md:mb-10">
                 <div className="flex items-center gap-4">
                   <h3 className="text-[10px] font-bold text-secondary/40 uppercase tracking-[0.25em]">Session Node</h3>
                   {s.isCurrent && (
@@ -189,7 +189,7 @@ export default function SessionsPage() {
                 <StatusBadge status={getStatus(s)} />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10">
                 <div className="space-y-6">
                   <div>
                     <span className="text-[10px] font-bold text-secondary/40 uppercase tracking-[0.2em] block mb-2">Public Key</span>
@@ -200,21 +200,21 @@ export default function SessionsPage() {
                     <p className="text-lg font-mono text-secondary/80 font-medium tracking-tighter">{s.validUntil}</p>
                   </div>
                 </div>
-                <div className="flex flex-col justify-end items-end space-y-4">
+                <div className="flex flex-col md:justify-end md:items-end space-y-4">
                   <span className="text-[10px] font-bold text-secondary/40 uppercase tracking-[0.25em]">Operational Status</span>
-                  <div className="flex flex-col items-end gap-6 w-full">
+                  <div className="flex flex-col md:items-end gap-6 w-full">
                     <p className="font-serif text-4xl font-medium text-secondary/90 tracking-tight">
                       {s.expired
                         ? s.canRenew ? 'Renewable' : 'Expired'
                         : 'Operational'}
                     </p>
 
-                    <div className="flex gap-4">
+                    <div className="flex flex-wrap gap-4">
                       {s.isCurrent && s.canRenew && (
                         <button
                           onClick={handleRenew}
                           disabled={!!actionLoading}
-                          className="px-6 py-2 text-[10px] font-bold border border-black/5 rounded-xl hover:bg-black/2 transition-all disabled:opacity-20 uppercase tracking-widest text-secondary/80"
+                          className="flex-1 md:flex-none px-6 py-2 text-[10px] font-bold border border-black/5 rounded-xl hover:bg-black/2 transition-all disabled:opacity-20 uppercase tracking-widest text-secondary/80"
                         >
                           {actionLoading === 'renew' ? 'Extending...' : 'Extend'}
                         </button>
@@ -232,15 +232,15 @@ export default function SessionsPage() {
                             setResult('Session token copied to clipboard! Use: export CAVOS_TOKEN="' + exportToken + '"');
                           }}
                           disabled={!!actionLoading}
-                          className="px-6 py-2 text-[10px] font-bold border border-primary/20 bg-primary/5 rounded-xl hover:bg-primary/10 transition-all disabled:opacity-20 uppercase tracking-widest text-primary"
+                          className="flex-1 md:flex-none px-6 py-2 text-[10px] font-bold border border-primary/20 bg-primary/5 rounded-xl hover:bg-primary/10 transition-all disabled:opacity-20 uppercase tracking-widest text-primary"
                         >
-                          Export for CLI
+                          Export
                         </button>
                       )}
                       <button
                         onClick={() => setShowConfirm({ type: 'revoke', key: s.key })}
                         disabled={!!actionLoading}
-                        className="px-6 py-2 text-[10px] font-bold border border-black/5 rounded-xl hover:bg-black/2 transition-all disabled:opacity-20 uppercase tracking-widest text-secondary/80"
+                        className="flex-1 md:flex-none px-6 py-2 text-[10px] font-bold border border-black/5 rounded-xl hover:bg-black/2 transition-all disabled:opacity-20 uppercase tracking-widest text-secondary/80"
                       >
                         {actionLoading === `revoke-${s.key}` ? 'Revoking...' : 'Revoke'}
                       </button>

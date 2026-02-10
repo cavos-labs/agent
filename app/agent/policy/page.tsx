@@ -103,13 +103,13 @@ export default function PolicyPage() {
 
   return (
     <div className="max-w-5xl mx-auto py-8">
-      <div className="mb-16">
-        <h2 className="font-serif text-6xl font-medium tracking-tight text-secondary">Policy</h2>
-        <p className="text-sm text-secondary/50 font-medium mt-4 tracking-tight">Configure autonomous session constraints</p>
+      <div className="mb-8 md:mb-16">
+        <h2 className="font-serif text-4xl md:text-6xl font-medium tracking-tight text-secondary">Policy</h2>
+        <p className="text-sm text-secondary/50 font-medium mt-2 md:mt-4 tracking-tight">Configure autonomous session constraints</p>
       </div>
 
       {/* Allowed Contracts */}
-      <div className="bg-bg border border-black/5 rounded-[2.5rem] p-12 mb-10 shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
+      <div className="bg-bg border border-black/5 rounded-[2.5rem] p-6 md:p-12 mb-10 shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
         <div className="flex items-center justify-between mb-8">
           <div>
             <h3 className="text-[10px] font-bold text-secondary/40 uppercase tracking-[0.25em] mb-2">Target Domains</h3>
@@ -120,11 +120,11 @@ export default function PolicyPage() {
         {policy.allowedContracts.length > 0 && (
           <div className="space-y-3 mb-8">
             {policy.allowedContracts.map(addr => (
-              <div key={addr} className="flex items-center justify-between bg-black/2 rounded-2xl px-6 py-4 border border-black/2">
-                <span className="text-sm font-mono text-secondary/80 tracking-tight">{addr.slice(0, 24)}...{addr.slice(-12)}</span>
+              <div key={addr} className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4 bg-black/2 rounded-2xl px-6 py-4 border border-black/2">
+                <span className="text-sm font-mono text-secondary/80 tracking-tight break-all">{addr}</span>
                 <button
                   onClick={() => removeContract(addr)}
-                  className="text-[10px] font-bold text-danger/60 uppercase tracking-widest hover:text-danger/80 transition-all"
+                  className="self-end md:self-auto text-[10px] font-bold text-danger/60 uppercase tracking-widest hover:text-danger/80 transition-all"
                 >
                   Terminate
                 </button>
@@ -133,7 +133,7 @@ export default function PolicyPage() {
           </div>
         )}
 
-        <div className="flex gap-4">
+        <div className="flex flex-col md:flex-row gap-4">
           <input
             type="text"
             placeholder="Contract address (0x...)"
