@@ -1,0 +1,456 @@
+'use client'
+import { useEffect, useState } from "react";
+import { useCavos } from "@cavos/react";
+import StatusBadge from "@/components/StatusBadge";
+import { getProvider } from "@/lib/rpc";
+import { num } from "starknet";
+
+interface SessionInfo {
+  key: string;
+  registered: boolean;
+  expired: boolean;
+  canRenew: boolean;
+  validUntil?: string;
+  renewalDeadline?: string;
+  isCurrent?: boolean;
+}
+
+export default function SessionsPage() {
+  const { address, renewSession, revokeSession, emergencyRevokeAllSessions, cavos, createSession, registerSession } = useCavos();
+  const network = (process.env.NEXT_PUBLIC_NETWORK as any) || 'sepolia';
+
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState('');
+  const [result, setResult] = useState('');
+  const [showConfirm, setShowConfirm] = useState<{ type: string; key?: string } | null>(null);
+
+  const fetchSessions = async () => {
+    if (!address) return;
+    setLoading(true);
+    try {
+      const provider = getProvider(network);
+      const currentSessionPubKey = (cavos as any).oauthManager?.getSession()?.sessionPubKey;
+
+      // 1. Fetch all SessionRegistered events
+      const SESSION_REGISTERED_KEY = '0x3b884c3fe0cee93e6453d50e9670be6fb54804e1bbbc159a845d9ab244a5ee6';
+
+      const FROM_BLOCK = network === 'mainnet' ? 6600000 : 0;
+      const eventsResponse = await provider.getEvents({
+        address: address,
+        from_block: { block_number: FROM_BLOCK } as any,
+        to_block: 'latest',
+        keys: [[SESSION_REGISTERED_KEY]],
+        chunk_size: 1000,
+      });
+
+      // 2. Extract unique session keys
+      const registeredKeys = new Set<string>();
+      if (currentSessionPubKey) registeredKeys.add(num.toHex(currentSessionPubKey));
+
+      for (const event of eventsResponse.events) {
+        const key = num.toHex(event.data[0]);
+        registeredKeys.add(key);
+      }
+
+      // 3. Fetch status for each session
+      const block = await provider.getBlock('latest');
+      const now = BigInt(block.timestamp);
+
+      const sessionData = await Promise.all(
+        Array.from(registeredKeys).map(async (key) => {
+          const isCurrent = key === num.toHex(currentSessionPubKey || '0');
+          try {
+            const res = await provider.callContract({
+              contractAddress: address,
+              entrypoint: 'get_session',
+              calldata: [key],
+            });
+
+            const nonce = BigInt(res[0]);
+            const validUntil = BigInt(res[2]);
+            const renewalDeadline = BigInt(res[3]);
+            const registered = nonce !== BigInt(0);
+
+            if (!registered) {
+              if (isCurrent) {
+                return { key, registered: false, expired: false, canRenew: false, isCurrent: true };
+              }
+              return null;
+            }
+
+            const expired = now >= validUntil;
+            const canRenew = expired && now < renewalDeadline;
+
+            return {
+              key,
+              registered: true,
+              expired,
+              canRenew,
+              validUntil: new Date(Number(validUntil) * 1000).toISOString(),
+              renewalDeadline: new Date(Number(renewalDeadline) * 1000).toISOString(),
+              isCurrent,
+            } as SessionInfo;
+          } catch {
+            if (isCurrent) return { key, registered: false, expired: false, canRenew: false, isCurrent: true };
+            return null;
+          }
+        })
+      );
+
+      setSessions(sessionData.filter((s): s is SessionInfo => s !== null));
+    } catch (err) {
+      console.error("Error fetching sessions:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSessions();
+  }, [address, network, cavos]);
+
+  const getStatus = (s: SessionInfo): 'active' | 'expired' | 'renewable' | 'not-registered' => {
+    if (!s.registered) return 'not-registered';
+    if (s.expired && s.canRenew) return 'renewable';
+    if (s.expired) return 'expired';
+    return 'active';
+  };
+
+  const handleRenew = async () => {
+    setActionLoading('renew');
+    setResult('');
+    try {
+      const txHash = await renewSession();
+      setResult(`Renewed: ${txHash}`);
+      await fetchSessions();
+    } catch (err: any) {
+      setResult(`Error: ${err.message}`);
+    } finally {
+      setActionLoading('');
+    }
+  };
+
+  const handleRevoke = async (key?: string) => {
+    const keyToRevoke = key || (cavos as any).oauthManager?.getSession()?.sessionPubKey;
+    if (!keyToRevoke) return;
+
+    setShowConfirm(null);
+    setActionLoading(`revoke-${keyToRevoke}`);
+    setResult('');
+    try {
+      const txHash = await revokeSession(keyToRevoke);
+      setResult(`Revoked: ${txHash}`);
+      await fetchSessions();
+    } catch (err: any) {
+      setResult(`Error: ${err.message}`);
+    } finally {
+      setActionLoading('');
+    }
+  };
+
+  const handleEmergencyRevoke = async () => {
+    setShowConfirm(null);
+    setActionLoading('emergency');
+    setResult('');
+    try {
+      const txHash = await emergencyRevokeAllSessions();
+      setResult(`All sessions revoked: ${txHash}`);
+      await fetchSessions();
+    } catch (err: any) {
+      setResult(`Error: ${err.message}`);
+    } finally {
+      setActionLoading('');
+    }
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto py-8">
+      <div className="mb-16">
+        <h2 className="font-serif text-6xl font-medium tracking-tight text-secondary">Sessions</h2>
+        <p className="text-sm text-secondary/50 font-medium mt-4 tracking-tight">Active cryptographic authorizations</p>
+      </div>
+
+      {loading ? (
+        <div className="bg-bg border border-black/5 rounded-[2.5rem] p-12 mb-10 shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
+          <p className="text-sm text-secondary/50 font-medium italic">Scanning on-chain session nodes...</p>
+        </div>
+      ) : sessions.length === 0 ? (
+        <div className="bg-bg border border-black/5 rounded-[2.5rem] p-12 mb-10 shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
+          <p className="text-sm text-secondary/60 font-medium tracking-tight">No active cryptographic session detected on-chain.</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {sessions.map((s) => (
+            <div key={s.key} className={`bg-bg border ${s.isCurrent ? 'border-primary/20 bg-primary/5' : 'border-black/5'} rounded-[2.5rem] p-12 shadow-[0_4px_20px_rgba(0,0,0,0.01)]`}>
+              <div className="flex items-center justify-between mb-10">
+                <div className="flex items-center gap-4">
+                  <h3 className="text-[10px] font-bold text-secondary/40 uppercase tracking-[0.25em]">Session Node</h3>
+                  {s.isCurrent && (
+                    <span className="px-3 py-1 bg-primary/10 text-primary text-[8px] font-bold uppercase tracking-widest rounded-full">Current Node</span>
+                  )}
+                </div>
+                <StatusBadge status={getStatus(s)} />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div className="space-y-6">
+                  <div>
+                    <span className="text-[10px] font-bold text-secondary/40 uppercase tracking-[0.2em] block mb-2">Public Key</span>
+                    <p className="text-[10px] font-mono text-secondary/40 font-medium tracking-tighter truncate max-w-[200px]">{s.key}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-secondary/40 uppercase tracking-[0.2em] block mb-2">Expirations</span>
+                    <p className="text-lg font-mono text-secondary/80 font-medium tracking-tighter">{s.validUntil}</p>
+                  </div>
+                </div>
+                <div className="flex flex-col justify-end items-end space-y-4">
+                  <span className="text-[10px] font-bold text-secondary/40 uppercase tracking-[0.25em]">Operational Status</span>
+                  <div className="flex flex-col items-end gap-6 w-full">
+                    <p className="font-serif text-4xl font-medium text-secondary/90 tracking-tight">
+                      {s.expired
+                        ? s.canRenew ? 'Renewable' : 'Expired'
+                        : 'Operational'}
+                    </p>
+
+                    <div className="flex gap-4">
+                      {s.isCurrent && s.canRenew && (
+                        <button
+                          onClick={handleRenew}
+                          disabled={!!actionLoading}
+                          className="px-6 py-2 text-[10px] font-bold border border-black/5 rounded-xl hover:bg-black/2 transition-all disabled:opacity-20 uppercase tracking-widest text-secondary/80"
+                        >
+                          {actionLoading === 'renew' ? 'Extending...' : 'Extend'}
+                        </button>
+                      )}
+                      {s.isCurrent && (
+                        <button
+                          onClick={() => {
+                            const session = (cavos as any).oauthManager?.getSession();
+                            if (!session) {
+                              alert('No active session to export');
+                              return;
+                            }
+                            const exportToken = (cavos as any).exportSession();
+                            navigator.clipboard.writeText(exportToken);
+                            setResult('Session token copied to clipboard! Use: export CAVOS_TOKEN="' + exportToken + '"');
+                          }}
+                          disabled={!!actionLoading}
+                          className="px-6 py-2 text-[10px] font-bold border border-primary/20 bg-primary/5 rounded-xl hover:bg-primary/10 transition-all disabled:opacity-20 uppercase tracking-widest text-primary"
+                        >
+                          Export for CLI
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowConfirm({ type: 'revoke', key: s.key })}
+                        disabled={!!actionLoading}
+                        className="px-6 py-2 text-[10px] font-bold border border-black/5 rounded-xl hover:bg-black/2 transition-all disabled:opacity-20 uppercase tracking-widest text-secondary/80"
+                      >
+                        {actionLoading === `revoke-${s.key}` ? 'Revoking...' : 'Revoke'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Create New Session */}
+      <div className="bg-bg border border-black/5 rounded-[2.5rem] p-12 mb-10 shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h3 className="text-[10px] font-bold text-secondary/40 uppercase tracking-[0.25em] mb-2">Create Session Key</h3>
+            <p className="text-sm text-secondary/60 font-medium tracking-tight">Generate and register a new cryptographic session using your OAuth JWT</p>
+          </div>
+          <button
+            onClick={async () => {
+              setActionLoading('create');
+              setResult('');
+              try {
+                // Load policy from localStorage (same as Policy page)
+                const stored = localStorage.getItem('cavos_agent_policy');
+                const policy = stored ? JSON.parse(stored) : {
+                  allowedContracts: [],
+                  spendingLimits: [],
+                  maxCallsPerTx: 5,
+                  sessionDuration: 86400
+                };
+
+                const network = process.env.NEXT_PUBLIC_NETWORK || 'sepolia';
+                const tokens = [
+                  { address: network === 'mainnet' ? '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d' : '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d', symbol: 'STRK', decimals: 18 },
+                  { address: network === 'mainnet' ? '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7' : '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7', symbol: 'ETH', decimals: 18 },
+                ];
+
+                const sdkPolicy = {
+                  allowedContracts: policy.allowedContracts,
+                  maxCallsPerTx: policy.maxCallsPerTx,
+                  spendingLimits: policy.spendingLimits.map((sl: any) => {
+                    const token = tokens.find(t => t.address === sl.token);
+                    const decimals = token?.decimals || 18;
+                    return {
+                      token: sl.token,
+                      limit: BigInt(Math.floor(parseFloat(sl.limit) * Math.pow(10, decimals))),
+                    };
+                  }),
+                };
+
+                const session = await createSession(sdkPolicy);
+                const txHash = await registerSession(session);
+
+                setResult(`Session created and registered! TX: ${txHash}`);
+                await fetchSessions();
+              } catch (err: any) {
+                setResult(`Error: ${err.message}`);
+              } finally {
+                setActionLoading('');
+              }
+            }}
+            disabled={!!actionLoading}
+            className={`px-8 py-4 text-xs font-bold rounded-2xl transition-all shadow-lg shadow-black/5 ${actionLoading === 'create' ? 'bg-black/10 text-secondary/40' : 'bg-primary text-bg hover:opacity-90'
+              }`}
+          >
+            {actionLoading === 'create' ? 'Creating & Registering...' : 'Create New Session'}
+          </button>
+        </div>
+
+        <p className="text-xs text-secondary/50 italic">
+          Uses the policy configured in the Policy page. Configure contracts, limits, and duration there before creating.
+        </p>
+      </div>
+
+      {/* Emergency Revoke All */}
+      setActionLoading('provision');
+      setResult('');
+      try {
+                // Use default policy for quick provisioning
+                const defaultPolicy = {allowedContracts: [], spendingLimits: [], maxCallsPerTx: 10 };
+
+      // 1. Create session locally
+      const session = await createSession(defaultPolicy);
+
+      // 2. Register session on-chain
+      const txHash = await registerSession(session);
+
+      const tokenObj = {
+        sessionPrivateKey: session.sessionPrivateKey,
+      sessionPubKey: session.sessionPubKey,
+      nonceParams: {
+        sessionPubKey: session.nonceParams.sessionPubKey,
+      validAfter: session.nonceParams.validAfter.toString(),
+      validUntil: session.nonceParams.validUntil.toString(),
+      renewalDeadline: session.nonceParams.renewalDeadline.toString(),
+      randomness: session.nonceParams.randomness.toString(),
+                  },
+      nonce: session.nonce,
+      walletAddress: session.walletAddress,
+      appSalt: (cavos as any).appSalt,
+      sessionPolicy: defaultPolicy
+                };
+
+      const token = btoa(JSON.stringify(tokenObj));
+      setResult(`PROVISION_SUCCESS|${token}`);
+      await fetchSessions();
+              } catch (err: any) {
+        setResult(`Error: ${err.message}`);
+              } finally {
+        setActionLoading('');
+              }
+            }}
+      disabled={!!actionLoading}
+      className={`px-8 py-4 text-xs font-bold rounded-2xl transition-all shadow-lg shadow-black/5 ${actionLoading === 'provision' ? 'bg-black/10 text-secondary/40' : 'bg-primary text-bg hover:opacity-90'
+        }`}
+          >
+      {actionLoading === 'provision' ? 'Provisioning...' : 'Provision New Agent'}
+    </button>
+        </div >
+
+  {
+    result.startsWith('PROVISION_SUCCESS|') ? (
+      <div className="p-6 bg-black/2 rounded-2xl border border-black/5">
+        <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-4">Provisioning Successful</p>
+        <p className="text-sm text-secondary/60 font-medium mb-6">Your agent is ready. Run this command in your CLI:</p>
+        <div className="p-4 bg-black/5 rounded-xl border border-black/5 flex items-center gap-3">
+          <code className="text-[10px] font-mono text-secondary/70 break-all select-all flex-1">
+            cavos session import {result.split('|')[1]}
+          </code>
+          <button
+            onClick={() => navigator.clipboard.writeText(`cavos session import ${result.split('|')[1]}`)}
+            className="text-[10px] font-bold text-secondary/40 hover:text-secondary uppercase"
+          >
+            Copy
+          </button>
+        </div>
+        <button
+          onClick={() => setResult('')}
+          className="mt-6 text-xs font-bold text-secondary/40 hover:text-secondary transition-colors"
+        >
+          Clear
+        </button>
+      </div>
+    ) : result && result.startsWith('Error') && actionLoading !== 'provision' ? (
+      <div className="p-5 rounded-2xl bg-danger/5 border border-danger/10">
+        <p className="text-xs font-mono text-danger/60 break-all">{result}</p>
+      </div>
+    ) : null
+  }
+      </div >
+
+    {/* Override Actions */ }
+    < div className = "bg-bg border border-black/5 rounded-[2.5rem] p-12 mb-10 shadow-[0_4px_20px_rgba(0,0,0,0.01)]" >
+        <h3 className="text-[10px] font-bold text-secondary/40 uppercase tracking-[0.25em] mb-8">System Commands</h3>
+        <div className="flex flex-wrap gap-4">
+          <button
+            onClick={() => setShowConfirm({ type: 'emergency' })}
+            disabled={!!actionLoading}
+            className="px-8 py-4 text-xs font-bold bg-danger/5 text-danger rounded-2xl hover:bg-danger/10 transition-all disabled:opacity-20 uppercase tracking-widest"
+          >
+            Emergency Flush
+          </button>
+        </div>
+
+  {
+    result && !result.startsWith('PROVISION_SUCCESS') && !result.startsWith('Error') && (
+      <div className="mt-10 p-5 rounded-2xl bg-black/2 border border-black/2">
+        <p className="text-xs font-mono text-secondary/60 break-all">{result}</p>
+      </div>
+    )
+  }
+      </div >
+
+    {/* Confirmation Modal */ }
+  {
+    showConfirm && (
+      <div className="fixed inset-0 bg-secondary/10 backdrop-blur-md flex items-center justify-center z-50 transition-all">
+        <div className="bg-bg border border-black/10 rounded-[2.5rem] p-12 max-w-lg w-full mx-4 shadow-2xl">
+          <h3 className="font-serif text-3xl font-medium text-secondary mb-4 tracking-tight">
+            {showConfirm.type === 'emergency' ? 'Terminate All Authorizations' : 'Revoke Session'}
+          </h3>
+          <p className="text-sm text-secondary/60 font-medium mb-10 tracking-tight leading-relaxed">
+            {showConfirm.type === 'emergency'
+              ? 'This action will globally invalidate all cryptographic authorization nodes. This procedure is irreversible and will lock current agent interactions immediately.'
+              : 'This protocol will terminate the selected ephemeral authorization. You will need to re-establish identity if this is your current session.'}
+          </p>
+          <div className="flex gap-4">
+            <button
+              onClick={() => setShowConfirm(null)}
+              className="flex-1 px-8 py-4 text-xs font-bold border border-black/5 rounded-2xl hover:bg-black/2 tracking-widest uppercase text-secondary/60"
+            >
+              Abort
+            </button>
+            <button
+              onClick={showConfirm.type === 'emergency' ? handleEmergencyRevoke : () => handleRevoke(showConfirm.key)}
+              className="flex-1 px-8 py-4 text-xs font-bold bg-secondary text-bg rounded-2xl hover:opacity-90 tracking-widest uppercase shadow-xl shadow-black/5"
+            >
+              Execute
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+    </div >
+  );
+}

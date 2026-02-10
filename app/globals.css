@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #4837FF;
+  --color-primary-dark: #3628CC;
+  --color-primary-light: #6B5FFF;
+  --color-secondary: #000000;
+  --color-bg: #f4f4f0;
+  --color-bg-card: #FFFFFF;
+  --color-bg-sidebar: #000000;
+  --color-border: rgba(0, 0, 0, 0.1);
+  --color-border-strong: rgba(0, 0, 0, 0.2);
+  --color-text: #000000;
+  --color-text-muted: rgba(0, 0, 0, 0.5);
+  --color-text-subtle: rgba(0, 0, 0, 0.35);
+  --color-success: #1A7A4C;
+  --color-danger: #C23B22;
+  --font-serif: 'Georgia', 'Times New Roman', serif;
+  --font-pixel: "Pixelify Sans", cursive;
+}
+
+html,
+body {
+  height: 100%;
+  background: #f4f4f0;
+  color: #000000;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+button {
+  cursor: pointer;
+}
+
+/* Focus ring for accessibility */
+*:focus-visible {
+  outline: 2px solid #4837FF;
+  outline-offset: 2px;
+}
