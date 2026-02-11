@@ -28,8 +28,15 @@ export default function RootLayout({
 }>) {
   const [sessionDuration, setSessionDuration] = useState<number | undefined>(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('cavos_session_duration');
-      return stored ? parseInt(stored) : undefined;
+      const stored = localStorage.getItem('cavos_agent_policy');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          return parsed.sessionDuration;
+        } catch (e) {
+          return undefined;
+        }
+      }
     }
     return undefined;
   });
@@ -66,13 +73,14 @@ export default function RootLayout({
 
   useEffect(() => {
     const handleStorage = () => {
-      const storedDuration = localStorage.getItem('cavos_session_duration');
-      if (storedDuration) setSessionDuration(parseInt(storedDuration));
-
       const storedPolicy = localStorage.getItem('cavos_agent_policy');
       if (storedPolicy) {
         try {
           const parsed = JSON.parse(storedPolicy);
+          if (parsed.sessionDuration) {
+            setSessionDuration(parsed.sessionDuration);
+          }
+
           const network = process.env.NEXT_PUBLIC_NETWORK || 'sepolia';
           const tokens = getTokens(network);
           setPolicy({
