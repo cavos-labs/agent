@@ -6,7 +6,7 @@ import { getProvider, getERC20Balance, formatBalance } from "@/lib/rpc";
 import { getTokens, TokenInfo } from "@/lib/tokens";
 
 export default function DashboardOverview() {
-  const { address, user, isAccountDeployed, deployAccount, walletStatus, logout, execute, registerCurrentSession, exportSession, cavos } = useCavos();
+  const { address, user, isAccountDeployed, deployAccount, walletStatus, logout, execute, registerCurrentSession, exportSession, cavos, updateSessionPolicy } = useCavos();
   const network = process.env.NEXT_PUBLIC_NETWORK || 'sepolia';
   const tokens = getTokens(network);
 
@@ -69,6 +69,54 @@ export default function DashboardOverview() {
     }
   };
 
+  // Policy preview for confirm modal
+  const [pendingPolicy, setPendingPolicy] = useState<{
+    allowedContracts: string[];
+    maxCallsPerTx: number;
+    spendingLimits: { token: string; symbol: string; limit: string }[];
+  } | null>(null);
+
+  const prepareActivation = () => {
+    // Read policy from localStorage and sync to SDK
+    const storedPolicy = localStorage.getItem('cavos_agent_policy');
+    if (storedPolicy) {
+      try {
+        const parsed = JSON.parse(storedPolicy);
+        const policyForSDK = {
+          allowedContracts: parsed.allowedContracts || [],
+          maxCallsPerTx: parsed.maxCallsPerTx || 5,
+          spendingLimits: (parsed.spendingLimits || []).map((sl: any) => {
+            const token = tokens.find(t => t.address === sl.token);
+            const decimals = token?.decimals || 18;
+            const limitRaw = BigInt(Math.floor(parseFloat(sl.limit) * Math.pow(10, decimals)));
+            return { token: sl.token, limit: limitRaw };
+          })
+        };
+        updateSessionPolicy(policyForSDK);
+
+        // Build display-friendly version
+        setPendingPolicy({
+          allowedContracts: parsed.allowedContracts || [],
+          maxCallsPerTx: parsed.maxCallsPerTx || 5,
+          spendingLimits: (parsed.spendingLimits || []).map((sl: any) => {
+            const token = tokens.find(t => t.address === sl.token);
+            return {
+              token: sl.token,
+              symbol: token?.symbol || sl.token.slice(0, 6) + '…' + sl.token.slice(-4),
+              limit: sl.limit,
+            };
+          }),
+        });
+      } catch (e) {
+        console.error('[prepareActivation] Failed to parse policy:', e);
+        setPendingPolicy(null);
+      }
+    } else {
+      setPendingPolicy(null);
+    }
+    setShowConfirmModal(true);
+  };
+
   const handleActivate = async () => {
     setIsActivating(true);
     try {
@@ -79,6 +127,7 @@ export default function DashboardOverview() {
       setIsActivating(false);
     }
   };
+
 
   const handleCopy = () => {
     if (address) {
@@ -202,7 +251,7 @@ export default function DashboardOverview() {
         {/* Activation - Only When Not Active */}
         {deployed === true && !walletStatus.isSessionActive && (
           <button
-            onClick={() => setShowConfirmModal(true)}
+            onClick={prepareActivation}
             disabled={isActivating}
             className="mt-4 px-10 py-4 text-sm font-bold bg-primary text-bg rounded-2xl hover:opacity-90 transition-all duration-300 disabled:opacity-50 shadow-xl shadow-black/5 active:scale-[0.98]"
           >
@@ -290,19 +339,65 @@ export default function DashboardOverview() {
       {/* Confirmation Modal */}
       {showConfirmModal && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowConfirmModal(false)}>
-          <div className="bg-bg rounded-3xl p-10 max-w-md shadow-2xl border border-black/5" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-bg rounded-3xl p-10 max-w-lg shadow-2xl border border-black/5" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-2xl font-serif mb-4 text-secondary">Confirm Session Registration</h3>
-            <div className="bg-black/3 border border-black/10 rounded-xl p-4 mb-6">
-              <p className="text-sm text-secondary/70">
-                <strong className="text-secondary/90">Important:</strong> Make sure your session policy is correct before registering.
-              </p>
-              <p className="text-sm text-secondary/60 mt-2">
-                Review your allowed contracts, spending limits, and session duration in the{' '}
-                <a href="/agent/policy" className="text-primary underline font-semibold">Policy page</a>.
-              </p>
-            </div>
+
+            {/* Policy Breakdown */}
+            {pendingPolicy ? (
+              <div className="bg-black/3 border border-black/10 rounded-xl p-4 mb-5 space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-secondary/50">Policy to register on-chain</p>
+
+                {/* Spending Limits */}
+                <div>
+                  <p className="text-xs font-semibold text-secondary/70 mb-1">Spending Limits</p>
+                  {pendingPolicy.spendingLimits.length > 0 ? (
+                    <div className="space-y-1">
+                      {pendingPolicy.spendingLimits.map((sl, i) => (
+                        <div key={i} className="flex justify-between items-center bg-white/60 rounded-lg px-3 py-1.5">
+                          <span className="text-sm font-semibold text-secondary/80">{sl.symbol}</span>
+                          <span className="text-sm font-mono text-primary font-bold">{sl.limit}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-orange-600 font-medium">⚠ No spending limits — unlimited transfers allowed</p>
+                  )}
+                </div>
+
+                {/* Allowed Contracts */}
+                <div>
+                  <p className="text-xs font-semibold text-secondary/70 mb-1">Allowed Contracts</p>
+                  {pendingPolicy.allowedContracts.length > 0 ? (
+                    <div className="space-y-1">
+                      {pendingPolicy.allowedContracts.map((addr: string, i: number) => (
+                        <p key={i} className="text-xs font-mono text-secondary/60 bg-white/60 rounded-lg px-3 py-1.5">
+                          {addr.slice(0, 10)}…{addr.slice(-8)}
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-secondary/50">Any contract (no restriction)</p>
+                  )}
+                </div>
+
+                {/* Max Calls */}
+                <div className="flex justify-between items-center">
+                  <p className="text-xs font-semibold text-secondary/70">Max Calls per Tx</p>
+                  <p className="text-sm font-mono text-secondary/80 font-bold">{pendingPolicy.maxCallsPerTx}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-5">
+                <p className="text-sm text-orange-700 font-medium">⚠ No policy configured</p>
+                <p className="text-xs text-orange-600 mt-1">
+                  Session will be registered with <strong>no restrictions</strong>.{' '}
+                  <a href="/agent/policy" className="text-primary underline font-semibold">Configure policy first →</a>
+                </p>
+              </div>
+            )}
+
             <p className="text-sm text-secondary/60 mb-6">
-              This will register your session key on-chain, enabling gasless transactions within your policy limits.
+              This will register your session key on-chain with the above policy.
             </p>
             <div className="flex gap-3">
               <button
