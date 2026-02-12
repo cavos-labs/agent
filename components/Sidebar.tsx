@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { useCavos } from "@cavos/react";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 const NAV_ITEMS = [
   { href: '/agent', label: 'Overview', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1' },
@@ -19,8 +20,10 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const [wallets, setWallets] = useState<{ address: string; name?: string }[]>([]);
   const [isNamingModalOpen, setIsNamingModalOpen] = useState(false);
   const [newWalletName, setNewWalletName] = useState('');
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     getAssociatedWallets().then(setWallets);
   }, [getAssociatedWallets, address]);
 
@@ -39,6 +42,49 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
     } catch (err) {
       console.error("Failed to create wallet:", err);
     }
+  };
+
+  const renderModal = () => {
+    if (!isNamingModalOpen || !mounted) return null;
+
+    return createPortal(
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="absolute inset-0" onClick={() => setIsNamingModalOpen(false)} />
+        <div className="relative w-full max-w-sm bg-bg p-8 rounded-[2.5rem] shadow-2xl border border-black/5 animate-in zoom-in-95 duration-200">
+          <h3 className="font-serif text-2xl font-bold text-secondary mb-2 text-center">New Agent Wallet</h3>
+          <p className="text-sm text-secondary/40 mb-6 text-center">Enter a name to derive a new deterministic wallet address.</p>
+          
+          <form onSubmit={handleCreateWallet} className="space-y-4">
+            <input
+              type="text"
+              autoFocus
+              placeholder="e.g. Trading, Vault, Bot-1"
+              value={newWalletName}
+              onChange={(e) => setNewWalletName(e.target.value)}
+              className="w-full px-6 py-4 text-sm bg-black/5 text-secondary rounded-2xl outline-none focus:bg-black/10 transition-all border border-transparent focus:border-black/5 font-medium"
+            />
+            
+            <div className="flex gap-3 mt-2">
+              <button
+                type="button"
+                onClick={() => setIsNamingModalOpen(false)}
+                className="flex-1 py-4 text-sm font-bold border border-black/10 text-secondary/60 rounded-2xl hover:bg-black/2 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!newWalletName.trim()}
+                className="flex-[2] py-4 text-sm font-bold bg-secondary text-bg rounded-2xl hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-30"
+              >
+                Create
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>,
+      document.body
+    );
   };
 
   return (
@@ -133,44 +179,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
         </div>
       </aside>
 
-      {/* Naming Modal */}
-      {isNamingModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="absolute inset-0" onClick={() => setIsNamingModalOpen(false)} />
-          <div className="relative w-full max-w-sm bg-bg p-8 rounded-[2.5rem] shadow-2xl border border-black/5 animate-in zoom-in-95 duration-200">
-            <h3 className="font-serif text-2xl font-bold text-secondary mb-2 text-center">New Agent Wallet</h3>
-            <p className="text-sm text-secondary/40 mb-6 text-center">Enter a name to derive a new deterministic wallet address.</p>
-            
-            <form onSubmit={handleCreateWallet} className="space-y-4">
-              <input
-                type="text"
-                autoFocus
-                placeholder="e.g. Trading, Vault, Bot-1"
-                value={newWalletName}
-                onChange={(e) => setNewWalletName(e.target.value)}
-                className="w-full px-6 py-4 text-sm bg-black/5 text-secondary rounded-2xl outline-none focus:bg-black/10 transition-all border border-transparent focus:border-black/5 font-medium"
-              />
-              
-              <div className="flex gap-3 mt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsNamingModalOpen(false)}
-                  className="flex-1 py-4 text-sm font-bold border border-black/10 text-secondary/60 rounded-2xl hover:bg-black/2 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!newWalletName.trim()}
-                  className="flex-[2] py-4 text-sm font-bold bg-secondary text-bg rounded-2xl hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-30"
-                >
-                  Create
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {renderModal()}
     </>
   );
 }
